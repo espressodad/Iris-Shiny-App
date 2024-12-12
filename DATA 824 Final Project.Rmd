@@ -1,0 +1,113 @@
+---
+title: "DATA 824 Final Project"
+author: "Felix Sommerville"
+date: "`r Sys.Date()`"
+output: 
+  flexdashboard::flex_dashboard:
+  orientation: columns
+vertical_layout: fill
+runtime: shiny
+---
+  
+```{r setup, include=FALSE}
+# Load iequired libraries
+library(flexdashboard)
+library(shiny)
+library(ggplot2)
+library(dplyr)
+library(DT)
+```
+
+```{r}
+# User inputs
+selectInput("x_var", "Select X-axis Variable:",
+            choices = colnames(iris)[1:4],  
+            selected = "Sepal.Length")
+
+selectInput("y_var", "Select Y-axis Variable:",
+            choices = colnames(iris)[1:4],
+            selected = "Sepal.Width")
+
+selectInput("species_filter", "Filter by Species:",
+            choices = c("All", unique(iris$Species)),
+            selected = "All")
+```
+
+Page 1
+===================================== 
+### Scatter Plot of Selected Variables
+
+```{r}
+# Render the plot
+renderPlot({
+  # Filter data by species
+  filtered_data <- if (input$species_filter != "All") {
+    iris %>% filter(Species == input$species_filter)
+  } else {
+    iris
+  }
+  # Create the scatter plot
+  ggplot(filtered_data, aes_string(x = input$x_var, y = input$y_var, color = "Species")) +
+    geom_point(size = 3) +
+    labs(title = paste("Scatter Plot of", input$x_var, "vs", input$y_var),
+         x = input$x_var, y = input$y_var) +
+    theme_minimal()
+})
+```
+
+### Summary Table of Variables
+
+```{r}
+# Render the table
+renderDataTable({
+  iris_summary <- iris %>%
+    group_by(Species) %>%
+    summarise(across(where(is.numeric), mean, .names = "mean_{.col}"))
+  # Create the table
+  datatable(iris_summary, options = list(pageLength = 5, dom = 't'))
+})
+```
+
+Page 2
+===================================== 
+### Distribution of Selected Variables
+
+```{r}
+# Render the plot
+renderPlot({
+  # Create the histogram
+  ggplot(iris, aes_string(x = input$x_var, fill = "Species")) +
+    geom_histogram(bins = 15, position = "dodge", alpha = 0.7) +
+    labs(title = paste("Distribution of", input$x_var, "by Species"),
+         x = input$x_var, y = "Count") +
+    theme_minimal()
+})
+```
+
+### Pairwise Relationships (Pairs Plot)
+
+```{r}
+# Render the plot
+renderPlot({
+  # Filter data by species
+  filtered_data <- if (input$species_filter != "All") {
+    iris %>% filter(Species == input$species_filter)
+  } else {
+    iris
+  }
+  # Data cleaning: Remove rows with NA or non-finite values
+  filtered_data <- filtered_data %>%
+    filter(complete.cases(filtered_data[, 1:4])) %>%
+    filter(apply(filtered_data[, 1:4], 1, function(x) all(is.finite(x))))
+  # Check if there's any data left after filtering
+  if (nrow(filtered_data) > 0) {
+    # Create the pairwise plot
+    pairs(filtered_data[, 1:4], 
+          col = as.factor(filtered_data$Species),
+          main = "Pairs Plot of Iris Data")
+  } else {
+    # Included for situations when the remaining data after filtering is empty
+    plot(1, type = "n", xlab = "", ylab = "", main = "No valid data for pairwise plot")
+  }
+})
+```
